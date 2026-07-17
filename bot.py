@@ -1,7 +1,7 @@
 from ib_insync import *
 import numpy as np
 from datetime import datetime, timedelta, time
-import time
+import time as clock
 
 class HybridStrangleTrader:
     def __init__(self):
