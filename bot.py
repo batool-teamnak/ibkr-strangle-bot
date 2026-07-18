@@ -4,13 +4,15 @@ from datetime import datetime, timedelta, time
 import time as clock
 
 class HybridStrangleTrader:
-    def __init__(self):
-        self.ib = IB()
+    def __init__(self, ib=None, connect=True, host="127.0.0.1", port=7497, client_id=1):
+        self.ib = ib if ib is not None else IB()
         try:
-            self.ib.connect('127.0.0.1', 7497, clientId=1)
+            if connect:
+                self.ib.connect(host, port, clientId=client_id)
             print("✅ Connected to IBKR")
         except Exception as e:
-            print(f"❌ Error connecting to IBKR: {e}")
+            self.ib.disconnect()
+            raise ConnectionError(f"Unable to connect to IBKR: {e}") from e
 
         # Parameters
         self.account_value = 4900

@@ -34,3 +34,13 @@ class TradingTests(unittest.TestCase):
     def test_session_times_construct(self):
         self.assertEqual(self.trader.sell_time, time(15,45))
         self.assertEqual(self.trader.buy_time, time(9,35))
+
+    def test_connection_failure_and_injected_client(self):
+        broken = MagicMock()
+        broken.connect.side_effect = OSError('offline')
+        with self.assertRaises(ConnectionError):
+            bot.HybridStrangleTrader(ib=broken)
+        broken.disconnect.assert_called_once()
+        with contextlib.redirect_stdout(io.StringIO()):
+            bot.HybridStrangleTrader(ib=broken, connect=False)
+        self.assertEqual(broken.connect.call_count, 1)
