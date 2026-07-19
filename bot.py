@@ -1,5 +1,6 @@
 from ib_insync import *
 import numpy as np
+import math
 from datetime import datetime, timedelta, time
 import time as clock
 
@@ -72,7 +73,7 @@ class HybridStrangleTrader:
             ticker_data = self.ib.reqMktData(stock, '', False, False)
             self.ib.sleep(1)
             price = ticker_data.marketPrice()
-            if price is None or price == 0:
+            if not isinstance(price, (int, float)) or not math.isfinite(price) or price <= 0:
                 print(f"❌ No valid market price for {ticker}")
                 return
             print(f"📈 {ticker} market price: {price:.2f}")
