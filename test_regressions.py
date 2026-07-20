@@ -50,3 +50,9 @@ class TradingTests(unittest.TestCase):
             self.quote.marketPrice = lambda p=price:p
             self.quiet(self.trader.sell_strangle, 'F')
         self.ib.placeOrder.assert_not_called()
+
+    def test_invalid_premiums_block_orders(self):
+        for premium in (None, -1, float('nan'), float('inf')):
+            self.quote.ask = premium
+            self.quiet(self.trader.sell_strangle, 'F')
+        self.ib.placeOrder.assert_not_called()

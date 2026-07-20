@@ -100,7 +100,8 @@ class HybridStrangleTrader:
             call_data = self.ib.reqMktData(call, '', False, False)
             self.ib.sleep(1)
 
-            if put_data.ask is None or call_data.ask is None:
+            if any(not isinstance(p, (int, float)) or not math.isfinite(p) or p <= 0
+                   for p in (put_data.ask, call_data.ask)):
                 print(f"❌ Missing option prices for {ticker}")
                 return
             if put_data.ask < self.min_premium or call_data.ask < self.min_premium:
