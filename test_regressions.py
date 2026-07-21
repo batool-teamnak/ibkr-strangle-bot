@@ -56,3 +56,13 @@ class TradingTests(unittest.TestCase):
             self.quote.ask = premium
             self.quiet(self.trader.sell_strangle, 'F')
         self.ib.placeOrder.assert_not_called()
+
+    def test_invalid_volatility_blocks_entry(self):
+        for volatility in (None, float('nan'), float('inf'), 0):
+            self.quote.impliedVolatility = volatility
+            self.assertIsNone(self.quiet(self.trader.get_iv_rank, 'F'))
+            self.quiet(self.trader.sell_strangle, 'F')
+        self.ib.placeOrder.assert_not_called()
+        self.quote.impliedVolatility = .3
+        self.ib.reqHistoricalData.return_value = [SimpleNamespace(close=0)]
+        self.assertIsNone(self.quiet(self.trader.get_iv_rank, 'F'))

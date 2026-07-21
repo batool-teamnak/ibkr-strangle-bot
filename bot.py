@@ -48,9 +48,12 @@ class HybridStrangleTrader:
             ticker_data = self.ib.reqMktData(stock, '', False, False)
             self.ib.sleep(1)
             iv = ticker_data.impliedVolatility
-            if not hv or iv is None:
-                return 50
-            hv_20 = np.mean([h.close for h in hv[-20:]])
+            if not hv or not isinstance(iv, (int, float)) or not math.isfinite(iv) or iv <= 0:
+                return None
+            closes = [h.close for h in hv[-20:]]
+            if any(not math.isfinite(v) or v <= 0 for v in closes):
+                return None
+            hv_20 = np.mean(closes)
             iv_rank = min(100, max(0, (iv / hv_20 - 0.8) * 100))
             return iv_rank
         except Exception as e:
@@ -82,6 +85,8 @@ class HybridStrangleTrader:
             return
 
         iv_rank = self.get_iv_rank(ticker)
+        if iv_rank is None:
+            return
         expiry = self.next_expiry()
 
         if iv_rank > 70:
