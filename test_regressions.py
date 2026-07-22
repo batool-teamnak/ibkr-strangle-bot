@@ -66,3 +66,9 @@ class TradingTests(unittest.TestCase):
         self.quote.impliedVolatility = .3
         self.ib.reqHistoricalData.return_value = [SimpleNamespace(close=0)]
         self.assertIsNone(self.quiet(self.trader.get_iv_rank, 'F'))
+
+    def test_unqualified_options_block_entry(self):
+        self.ib.qualifyContracts.side_effect = None
+        self.ib.qualifyContracts.return_value = []
+        self.quiet(self.trader.sell_strangle, 'F')
+        self.ib.placeOrder.assert_not_called()

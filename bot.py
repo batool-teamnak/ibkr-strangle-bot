@@ -100,7 +100,9 @@ class HybridStrangleTrader:
         call = Option(ticker, expiry, call_strike, 'C', 'SMART')
 
         try:
-            self.ib.qualifyContracts(put, call)
+            qualified = self.ib.qualifyContracts(put, call)
+            if len(qualified) != 2 or not put.conId or not call.conId or put.conId == call.conId:
+                return
             put_data = self.ib.reqMktData(put, '', False, False)
             call_data = self.ib.reqMktData(call, '', False, False)
             self.ib.sleep(1)
