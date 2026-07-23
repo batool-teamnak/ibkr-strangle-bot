@@ -72,3 +72,10 @@ class TradingTests(unittest.TestCase):
         self.ib.qualifyContracts.return_value = []
         self.quiet(self.trader.sell_strangle, 'F')
         self.ib.placeOrder.assert_not_called()
+
+    def test_position_limit_checked_per_entry(self):
+        self.trader.max_strangles = 1
+        self.quiet(self.trader.sell_strangle, 'F')
+        self.assertEqual(len(self.trader.current_positions), 1)
+        self.quiet(self.trader.sell_strangle, 'AMC')
+        self.assertEqual(self.ib.placeOrder.call_count, 2)

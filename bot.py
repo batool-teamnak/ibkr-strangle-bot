@@ -66,6 +66,8 @@ class HybridStrangleTrader:
         return any(today <= d <= future for d in self.earnings_dates.get(ticker, []))
 
     def sell_strangle(self, ticker):
+        if len(self.current_positions) >= self.max_strangles:
+            return
         if ticker in self.blacklist or self.is_earnings_soon(ticker):
             print(f"⚠️ Skipping {ticker} (blacklist/earnings soon)")
             return
