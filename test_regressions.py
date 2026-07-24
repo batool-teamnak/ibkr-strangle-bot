@@ -79,3 +79,8 @@ class TradingTests(unittest.TestCase):
         self.assertEqual(len(self.trader.current_positions), 1)
         self.quiet(self.trader.sell_strangle, 'AMC')
         self.assertEqual(self.ib.placeOrder.call_count, 2)
+
+    def test_duplicate_symbol_entry_is_blocked(self):
+        self.quiet(self.trader.sell_strangle, 'F')
+        self.quiet(self.trader.sell_strangle, 'F')
+        self.assertEqual(self.ib.placeOrder.call_count, 2)

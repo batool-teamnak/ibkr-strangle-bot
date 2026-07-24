@@ -26,6 +26,7 @@ class HybridStrangleTrader:
         self.buy_time = time(9, 35)
         self.blacklist = set()
         self.current_positions = {}
+        self.position_symbols = {}
         self.earnings_dates = self.load_earnings_dates()
         self.stocks = ['AMC', 'PLTR', 'F', 'SNAP']
 
@@ -67,6 +68,8 @@ class HybridStrangleTrader:
 
     def sell_strangle(self, ticker):
         if len(self.current_positions) >= self.max_strangles:
+            return
+        if ticker in self.position_symbols.values():
             return
         if ticker in self.blacklist or self.is_earnings_soon(ticker):
             print(f"⚠️ Skipping {ticker} (blacklist/earnings soon)")
@@ -120,6 +123,7 @@ class HybridStrangleTrader:
             self.ib.placeOrder(put, LimitOrder('SELL', 1, put_data.ask))
             self.ib.placeOrder(call, LimitOrder('SELL', 1, call_data.ask))
             credit = put_data.ask + call_data.ask
+            self.position_symbols[(put.conId, call.conId)] = ticker
             self.current_positions[(put.conId, call.conId)] = (datetime.now(), credit, iv_rank)
             print(f"✅ Sold {ticker} {put_strike}P/{call_strike}C @ ${credit:.2f} (IV Rank: {iv_rank:.0f})")
         except Exception as e:
@@ -163,6 +167,7 @@ class HybridStrangleTrader:
 
         for key in to_remove:
             self.current_positions.pop(key, None)
+            self.position_symbols.pop(key, None)
 
     def next_expiry(self):
         today = datetime.now()
