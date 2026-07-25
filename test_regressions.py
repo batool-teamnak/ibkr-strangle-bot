@@ -84,3 +84,12 @@ class TradingTests(unittest.TestCase):
         self.quiet(self.trader.sell_strangle, 'F')
         self.quiet(self.trader.sell_strangle, 'F')
         self.assertEqual(self.ib.placeOrder.call_count, 2)
+
+    def test_snapshot_subscription_cleanup(self):
+        contract = bot.Stock('F','SMART','USD')
+        self.assertIs(self.trader.market_snapshot(contract), self.quote)
+        self.ib.cancelMktData.assert_called_once_with(contract)
+        self.ib.sleep.side_effect = RuntimeError('poll failure')
+        with self.assertRaises(RuntimeError):
+            self.trader.market_snapshot(contract)
+        self.assertEqual(self.ib.cancelMktData.call_count, 2)

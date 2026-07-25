@@ -38,6 +38,14 @@ class HybridStrangleTrader:
             'SNAP': ['2023-10-24', '2024-01-30']
         }
 
+    def market_snapshot(self, contract):
+        ticker = self.ib.reqMktData(contract, '', False, False)
+        try:
+            self.ib.sleep(1)
+            return ticker
+        finally:
+            self.ib.cancelMktData(contract)
+
     def get_iv_rank(self, ticker):
         try:
             stock = Stock(ticker, 'SMART', 'USD')
@@ -46,8 +54,7 @@ class HybridStrangleTrader:
                 stock, endDateTime='', durationStr='1 Y',
                 barSizeSetting='1 day', whatToShow='HISTORICAL_VOLATILITY', useRTH=True
             )
-            ticker_data = self.ib.reqMktData(stock, '', False, False)
-            self.ib.sleep(1)
+            ticker_data = self.market_snapshot(stock)
             iv = ticker_data.impliedVolatility
             if not hv or not isinstance(iv, (int, float)) or not math.isfinite(iv) or iv <= 0:
                 return None
@@ -78,8 +85,7 @@ class HybridStrangleTrader:
         stock = Stock(ticker, 'SMART', 'USD')
         try:
             self.ib.qualifyContracts(stock)
-            ticker_data = self.ib.reqMktData(stock, '', False, False)
-            self.ib.sleep(1)
+            ticker_data = self.market_snapshot(stock)
             price = ticker_data.marketPrice()
             if not isinstance(price, (int, float)) or not math.isfinite(price) or price <= 0:
                 print(f"❌ No valid market price for {ticker}")
@@ -108,9 +114,8 @@ class HybridStrangleTrader:
             qualified = self.ib.qualifyContracts(put, call)
             if len(qualified) != 2 or not put.conId or not call.conId or put.conId == call.conId:
                 return
-            put_data = self.ib.reqMktData(put, '', False, False)
-            call_data = self.ib.reqMktData(call, '', False, False)
-            self.ib.sleep(1)
+            put_data = self.market_snapshot(put)
+            call_data = self.market_snapshot(call)
 
             if any(not isinstance(p, (int, float)) or not math.isfinite(p) or p <= 0
                    for p in (put_data.ask, call_data.ask)):
@@ -137,9 +142,8 @@ class HybridStrangleTrader:
                 put = Contract(conId=put_id, exchange='SMART')
                 call = Contract(conId=call_id, exchange='SMART')
                 self.ib.qualifyContracts(put, call)
-                put_data = self.ib.reqMktData(put, '', False, False)
-                call_data = self.ib.reqMktData(call, '', False, False)
-                self.ib.sleep(1)
+                put_data = self.market_snapshot(put)
+                call_data = self.market_snapshot(call)
 
                 put_price = put_data.midpoint() or put_data.last
                 call_price = call_data.midpoint() or call_data.last
