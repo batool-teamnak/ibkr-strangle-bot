@@ -134,6 +134,13 @@ class HybridStrangleTrader:
         except Exception as e:
             print(f"❌ Error placing order for {ticker}: {e}")
 
+    @staticmethod
+    def exit_price(ticker):
+        for value in (ticker.midpoint(), ticker.last):
+            if isinstance(value, (int, float)) and math.isfinite(value) and value > 0:
+                return value
+        return None
+
     def manage_positions(self):
         to_remove = []
         for key, (open_time, credit, iv_rank) in self.current_positions.items():
@@ -145,8 +152,8 @@ class HybridStrangleTrader:
                 put_data = self.market_snapshot(put)
                 call_data = self.market_snapshot(call)
 
-                put_price = put_data.midpoint() or put_data.last
-                call_price = call_data.midpoint() or call_data.last
+                put_price = self.exit_price(put_data)
+                call_price = self.exit_price(call_data)
                 if put_price is None or call_price is None:
                     continue
 

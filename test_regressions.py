@@ -93,3 +93,10 @@ class TradingTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.trader.market_snapshot(contract)
         self.assertEqual(self.ib.cancelMktData.call_count, 2)
+
+    def test_exit_quote_fallback(self):
+        self.quote.midpoint = lambda:float('nan')
+        self.quote.last = .7
+        self.assertEqual(self.trader.exit_price(self.quote), .7)
+        self.quote.last = float('inf')
+        self.assertIsNone(self.trader.exit_price(self.quote))
