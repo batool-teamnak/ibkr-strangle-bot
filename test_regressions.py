@@ -100,3 +100,8 @@ class TradingTests(unittest.TestCase):
         self.assertEqual(self.trader.exit_price(self.quote), .7)
         self.quote.last = float('inf')
         self.assertIsNone(self.trader.exit_price(self.quote))
+
+    def test_midrange_volatility_has_profit_exit(self):
+        self.trader.current_positions[(1,2)] = (datetime.now(), 2.0, 40)
+        self.quiet(self.trader.manage_positions)
+        self.assertEqual(self.ib.placeOrder.call_count, 2)

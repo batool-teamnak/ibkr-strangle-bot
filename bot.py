@@ -160,10 +160,9 @@ class HybridStrangleTrader:
                 value = put_price + call_price
                 profit_pct = (credit - value) / credit
                 reason = None
-                if iv_rank > 50 and profit_pct >= self.profit_target_high_iv:
-                    reason = "🔓 Hit 50% target"
-                elif iv_rank < 30 and profit_pct >= self.profit_target_low_iv:
-                    reason = "🔓 Hit 25% target (low IV)"
+                target = self.profit_target_high_iv if iv_rank > 50 else self.profit_target_low_iv
+                if profit_pct >= target:
+                    reason = f"Profit target reached ({target:.0%})"
                 elif value >= credit * self.stop_loss:
                     reason = "🛑 Stop loss hit"
                     self.blacklist.add(put.symbol)
