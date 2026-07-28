@@ -105,3 +105,9 @@ class TradingTests(unittest.TestCase):
         self.trader.current_positions[(1,2)] = (datetime.now(), 2.0, 40)
         self.quiet(self.trader.manage_positions)
         self.assertEqual(self.ib.placeOrder.call_count, 2)
+
+    def test_run_waits_use_broker_event_loop(self):
+        import inspect
+        source = inspect.getsource(self.trader.run)
+        self.assertIn('self.ib.sleep(60)', source)
+        self.assertNotIn('time.sleep', source)

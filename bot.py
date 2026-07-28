@@ -2,7 +2,6 @@ from ib_insync import *
 import numpy as np
 import math
 from datetime import datetime, timedelta, time
-import time as clock
 
 class HybridStrangleTrader:
     def __init__(self, ib=None, connect=True, host="127.0.0.1", port=7497, client_id=1):
@@ -191,21 +190,21 @@ class HybridStrangleTrader:
             while True:
                 now = datetime.now()
                 if now.weekday() >= 5:
-                    time.sleep(600)
+                    self.ib.sleep(600)
                     continue
 
                 if not time(9, 30) <= now.time() <= time(16, 0):
-                    time.sleep(60)
+                    self.ib.sleep(60)
                     continue
 
                 if now.time() >= self.sell_time:
                     if len(self.current_positions) < self.max_strangles:
                         for ticker in self.stocks:
                             self.sell_strangle(ticker)
-                            time.sleep(1)
+                            self.ib.sleep(1)
 
                 self.manage_positions()
-                time.sleep(60)
+                self.ib.sleep(60)
         except KeyboardInterrupt:
             print("🛑 Trader manually stopped.")
         finally:
