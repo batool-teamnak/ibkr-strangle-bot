@@ -111,3 +111,10 @@ class TradingTests(unittest.TestCase):
         source = inspect.getsource(self.trader.run)
         self.assertIn('self.ib.sleep(60)', source)
         self.assertNotIn('time.sleep', source)
+
+    def test_market_clock_uses_eastern_time(self):
+        self.assertEqual(str(bot.market_now().tzinfo), 'America/New_York')
+        with patch.object(bot, 'market_now', return_value=datetime(2026,7,3,16,tzinfo=bot.ET)):
+            self.assertEqual(self.trader.next_expiry(), '20260710')
+            self.trader.earnings_dates = {'F':['2026-07-04']}
+            self.assertTrue(self.trader.is_earnings_soon('F'))

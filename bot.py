@@ -2,6 +2,12 @@ from ib_insync import *
 import numpy as np
 import math
 from datetime import datetime, timedelta, time
+from zoneinfo import ZoneInfo
+
+ET = ZoneInfo("America/New_York")
+
+def market_now():
+    return datetime.now(ET)
 
 class HybridStrangleTrader:
     def __init__(self, ib=None, connect=True, host="127.0.0.1", port=7497, client_id=1):
@@ -68,8 +74,8 @@ class HybridStrangleTrader:
             return 50
 
     def is_earnings_soon(self, ticker, days=5):
-        today = datetime.now().strftime('%Y-%m-%d')
-        future = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d')
+        today = market_now().strftime('%Y-%m-%d')
+        future = (market_now() + timedelta(days=days)).strftime('%Y-%m-%d')
         return any(today <= d <= future for d in self.earnings_dates.get(ticker, []))
 
     def sell_strangle(self, ticker):
@@ -128,7 +134,7 @@ class HybridStrangleTrader:
             self.ib.placeOrder(call, LimitOrder('SELL', 1, call_data.ask))
             credit = put_data.ask + call_data.ask
             self.position_symbols[(put.conId, call.conId)] = ticker
-            self.current_positions[(put.conId, call.conId)] = (datetime.now(), credit, iv_rank)
+            self.current_positions[(put.conId, call.conId)] = (market_now(), credit, iv_rank)
             print(f"✅ Sold {ticker} {put_strike}P/{call_strike}C @ ${credit:.2f} (IV Rank: {iv_rank:.0f})")
         except Exception as e:
             print(f"❌ Error placing order for {ticker}: {e}")
@@ -179,7 +185,7 @@ class HybridStrangleTrader:
             self.position_symbols.pop(key, None)
 
     def next_expiry(self):
-        today = datetime.now()
+        today = market_now()
         days_until_friday = (4 - today.weekday()) % 7
         friday = today + timedelta(days=days_until_friday or 7)
         return friday.strftime('%Y%m%d')
@@ -188,7 +194,7 @@ class HybridStrangleTrader:
         print(f"🚀 Hybrid Strangle Trader Running | Account: ${self.account_value}")
         try:
             while True:
-                now = datetime.now()
+                now = market_now()
                 if now.weekday() >= 5:
                     self.ib.sleep(600)
                     continue
