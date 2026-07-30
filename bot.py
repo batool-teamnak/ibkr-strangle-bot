@@ -150,6 +150,8 @@ class HybridStrangleTrader:
         to_remove = []
         for key, (open_time, credit, iv_rank) in self.current_positions.items():
             try:
+                if not isinstance(credit, (int, float)) or not math.isfinite(credit) or credit <= 0:
+                    continue
                 put_id, call_id = key
                 put = Contract(conId=put_id, exchange='SMART')
                 call = Contract(conId=call_id, exchange='SMART')

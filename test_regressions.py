@@ -118,3 +118,9 @@ class TradingTests(unittest.TestCase):
             self.assertEqual(self.trader.next_expiry(), '20260710')
             self.trader.earnings_dates = {'F':['2026-07-04']}
             self.assertTrue(self.trader.is_earnings_soon('F'))
+
+    def test_bad_entry_credit_does_not_submit_exit(self):
+        for credit in (0, -1, float('nan'), float('inf')):
+            self.trader.current_positions = {(1,2):(datetime.now(),credit,40)}
+            self.quiet(self.trader.manage_positions)
+        self.ib.placeOrder.assert_not_called()
