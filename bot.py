@@ -32,6 +32,7 @@ class HybridStrangleTrader:
         self.blacklist = set()
         self.current_positions = {}
         self.position_symbols = {}
+        self.closing_orders = {}
         self.earnings_dates = self.load_earnings_dates()
         self.stocks = ['AMC', 'PLTR', 'F', 'SNAP']
 
@@ -150,6 +151,13 @@ class HybridStrangleTrader:
         to_remove = []
         for key, (open_time, credit, iv_rank) in self.current_positions.items():
             try:
+                pending = self.closing_orders.get(key)
+                if pending:
+                    if len(pending) == 2 and all(t.orderStatus.status == 'Filled' for t in pending):
+                        to_remove.append(key)
+                    elif all(t.isDone() for t in pending) and all(t.orderStatus.filled == 0 for t in pending):
+                        self.closing_orders.pop(key, None)
+                    continue
                 if not isinstance(credit, (int, float)) or not math.isfinite(credit) or credit <= 0:
                     continue
                 put_id, call_id = key
@@ -175,9 +183,10 @@ class HybridStrangleTrader:
                     self.blacklist.add(put.symbol)
 
                 if reason:
-                    self.ib.placeOrder(put, MarketOrder('BUY', 1))
-                    self.ib.placeOrder(call, MarketOrder('BUY', 1))
-                    to_remove.append(key)
+                    put_exit = self.ib.placeOrder(put, MarketOrder('BUY', 1))
+                    self.closing_orders[key] = [put_exit]
+                    call_exit = self.ib.placeOrder(call, MarketOrder('BUY', 1))
+                    self.closing_orders[key].append(call_exit)
                     print(f"🔁 Closing {put.symbol} strangle: {reason}")
             except Exception as e:
                 print(f"❌ Error managing position: {e}")
@@ -185,6 +194,7 @@ class HybridStrangleTrader:
         for key in to_remove:
             self.current_positions.pop(key, None)
             self.position_symbols.pop(key, None)
+            self.closing_orders.pop(key, None)
 
     def next_expiry(self):
         today = market_now()

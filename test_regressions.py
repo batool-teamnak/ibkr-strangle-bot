@@ -124,3 +124,14 @@ class TradingTests(unittest.TestCase):
             self.trader.current_positions = {(1,2):(datetime.now(),credit,40)}
             self.quiet(self.trader.manage_positions)
         self.ib.placeOrder.assert_not_called()
+
+    def test_unfilled_close_is_retained_without_duplicate_orders(self):
+        self.trader.current_positions[(1,2)] = (datetime.now(),2.0,40)
+        self.quiet(self.trader.manage_positions)
+        self.assertIn((1,2), self.trader.current_positions)
+        self.quiet(self.trader.manage_positions)
+        self.assertEqual(self.ib.placeOrder.call_count, 2)
+        self.trade.orderStatus.status = 'Filled'
+        self.trade.orderStatus.filled = 1
+        self.quiet(self.trader.manage_positions)
+        self.assertNotIn((1,2), self.trader.current_positions)
