@@ -153,6 +153,12 @@ class HybridStrangleTrader:
             try:
                 pending = self.closing_orders.get(key)
                 if pending:
+                    if len(pending) == 1:
+                        # Retry only the missing call leg; never duplicate an already submitted put.
+                        call = Contract(conId=key[1], exchange='SMART')
+                        if self.ib.qualifyContracts(call):
+                            pending.append(self.ib.placeOrder(call, MarketOrder('BUY', 1)))
+                        continue
                     if len(pending) == 2 and all(t.orderStatus.status == 'Filled' for t in pending):
                         to_remove.append(key)
                     elif all(t.isDone() for t in pending) and all(t.orderStatus.filled == 0 for t in pending):

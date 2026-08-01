@@ -135,3 +135,12 @@ class TradingTests(unittest.TestCase):
         self.trade.orderStatus.filled = 1
         self.quiet(self.trader.manage_positions)
         self.assertNotIn((1,2), self.trader.current_positions)
+
+    def test_second_exit_submission_failure_can_recover(self):
+        self.trader.current_positions[(1,2)] = (datetime.now(),2.0,40)
+        self.ib.placeOrder.side_effect = [self.trade, RuntimeError('lost connection'), self.trade]
+        self.quiet(self.trader.manage_positions)
+        self.assertEqual(len(self.trader.closing_orders[(1,2)]), 1)
+        self.quiet(self.trader.manage_positions)
+        self.assertEqual(len(self.trader.closing_orders[(1,2)]), 2)
+        self.assertEqual(self.ib.placeOrder.call_count, 3)
