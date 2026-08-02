@@ -65,3 +65,19 @@ python3 bot.py
 ## License
 
 This project is licensed under the MIT License (see `LICENSE`).
+
+## Offline verification and execution state
+
+Use Python 3.9+ (Eastern session time uses `zoneinfo`). Run
+`python -m unittest -v test_regressions` for simulated broker regression checks.
+Tests never connect to TWS or submit real orders. Clients can be injected with
+`HybridStrangleTrader(ib=client, connect=False)`; connection host, port and client
+ID can also be provided to the constructor.
+
+Position and pending-close state is in memory. Entries are two independent
+limit orders; they are tracked on submission rather than confirmed fills.
+Partial entry fills and restart reconciliation still require operator oversight.
+Closing positions stay tracked until both close legs are filled. A missing
+second close submission is retried without duplicating the first leg. A
+cancelled or rejected leg with a filled counterpart requires broker reconciliation.
+Earnings dates are configured in the script and must be refreshed by the operator.

@@ -144,3 +144,10 @@ class TradingTests(unittest.TestCase):
         self.quiet(self.trader.manage_positions)
         self.assertEqual(len(self.trader.closing_orders[(1,2)]), 2)
         self.assertEqual(self.ib.placeOrder.call_count, 3)
+
+    def test_injected_client_can_be_used_without_network(self):
+        client = MagicMock()
+        with contextlib.redirect_stdout(io.StringIO()):
+            trader = bot.HybridStrangleTrader(ib=client, connect=False)
+        client.connect.assert_not_called()
+        self.assertIs(trader.ib, client)
