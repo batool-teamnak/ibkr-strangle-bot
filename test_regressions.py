@@ -151,3 +151,9 @@ class TradingTests(unittest.TestCase):
             trader = bot.HybridStrangleTrader(ib=client, connect=False)
         client.connect.assert_not_called()
         self.assertIs(trader.ib, client)
+
+    def test_regression_workflow_does_not_launch_trader(self):
+        from pathlib import Path
+        workflow = Path('.github/workflows/regressions.yml').read_text()
+        self.assertIn('unittest -v test_regressions', workflow)
+        self.assertNotIn('python bot.py', workflow)
