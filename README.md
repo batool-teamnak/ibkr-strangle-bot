@@ -75,8 +75,11 @@ Tests never connect to TWS or submit real orders. Clients can be injected with
 ID can also be provided to the constructor.
 
 Position and pending-close state is in memory. Entries are two independent
-limit orders; they are tracked on submission rather than confirmed fills.
-Partial entry fills and restart reconciliation still require operator oversight.
+limit orders; submitted pairs reserve capacity while awaiting confirmed fills.
+Entry fills are now reconciled before normal exits: filled average prices
+replace quoted credit, rejected/missing entry legs cancel pending counterparts,
+and confirmed filled exposure is unwound using its actual filled quantity.
+Restart reconciliation still requires operator oversight.
 Closing positions stay tracked until both close legs are filled. A missing
 second close submission is retried without duplicating the first leg. A
 cancelled or rejected leg with a filled counterpart requires broker reconciliation.

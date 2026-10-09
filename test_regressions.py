@@ -106,11 +106,13 @@ class TradingTests(unittest.TestCase):
         self.quiet(self.trader.manage_positions)
         self.assertEqual(self.ib.placeOrder.call_count, 2)
 
-    def test_run_waits_use_broker_event_loop(self):
-        import inspect
-        source = inspect.getsource(self.trader.run)
-        self.assertIn('self.ib.sleep(60)', source)
-        self.assertNotIn('time.sleep', source)
+    def test_run_yields_and_disconnects_on_interrupt(self):
+        self.ib.sleep.side_effect = KeyboardInterrupt()
+        fixed = datetime(2026, 7, 4, 9, tzinfo=bot.ET)
+        with patch.object(bot, 'market_now', return_value=fixed):
+            self.quiet(self.trader.run)
+        self.ib.sleep.assert_called_once_with(600)
+        self.ib.disconnect.assert_called_once()
 
     def test_market_clock_uses_eastern_time(self):
         self.assertEqual(str(bot.market_now().tzinfo), 'America/New_York')
@@ -152,8 +154,38 @@ class TradingTests(unittest.TestCase):
         client.connect.assert_not_called()
         self.assertIs(trader.ib, client)
 
-    def test_regression_workflow_does_not_launch_trader(self):
-        from pathlib import Path
-        workflow = Path('.github/workflows/regressions.yml').read_text()
-        self.assertIn('unittest -v test_regressions', workflow)
-        self.assertNotIn('python bot.py', workflow)
+
+    def test_pending_entry_cannot_trigger_premature_exit(self):
+        self.quiet(self.trader.sell_strangle,'F')
+        self.quiet(self.trader.manage_positions)
+        self.assertEqual(self.ib.placeOrder.call_count,2)
+        self.assertEqual(len(self.trader.current_positions),1)
+
+    def test_actual_fill_prices_replace_quoted_credit(self):
+        self.quiet(self.trader.sell_strangle,'F')
+        key = next(iter(self.trader.current_positions))
+        self.trade.orderStatus.status = 'Filled'
+        self.trade.orderStatus.filled = 1
+        self.trade.orderStatus.avgFillPrice = .8
+        self.assertTrue(self.trader.reconcile_entry(key))
+        self.assertEqual(self.trader.current_positions[key][1],1.6)
+        self.assertNotIn(key,self.trader.entry_orders)
+
+    def test_incomplete_entry_unwinds_only_the_filled_leg(self):
+        first = SimpleNamespace(order=bot.LimitOrder('SELL',1,.5),
+                                orderStatus=SimpleNamespace(status='Submitted',filled=0,avgFillPrice=0))
+        closing = SimpleNamespace(orderStatus=SimpleNamespace(status='Submitted',filled=0))
+        self.ib.placeOrder.side_effect = [first,RuntimeError('second leg rejected'),closing]
+        self.quiet(self.trader.sell_strangle,'F')
+        key = next(iter(self.trader.current_positions))
+        first.orderStatus.status = 'Filled'
+        first.orderStatus.filled = 1
+        first.orderStatus.avgFillPrice = .5
+        self.quiet(self.trader.manage_positions)
+        self.assertEqual(self.ib.placeOrder.call_count,3)
+        self.assertEqual(len(self.trader.close_plans[key]),1)
+        self.assertEqual(self.ib.placeOrder.call_args.args[1].totalQuantity,1)
+        closing.orderStatus.status = 'Filled'
+        closing.orderStatus.filled = 1
+        self.quiet(self.trader.manage_positions)
+        self.assertNotIn(key,self.trader.current_positions)

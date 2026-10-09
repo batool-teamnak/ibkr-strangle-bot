@@ -33,6 +33,8 @@ class HybridStrangleTrader:
         self.current_positions = {}
         self.position_symbols = {}
         self.closing_orders = {}
+        self.close_plans = {}
+        self.entry_orders = {}
         self.earnings_dates = self.load_earnings_dates()
         self.stocks = ['AMC', 'PLTR', 'F', 'SNAP']
 
@@ -116,6 +118,7 @@ class HybridStrangleTrader:
         put = Option(ticker, expiry, put_strike, 'P', 'SMART')
         call = Option(ticker, expiry, call_strike, 'C', 'SMART')
 
+        key = None
         try:
             qualified = self.ib.qualifyContracts(put, call)
             if len(qualified) != 2 or not put.conId or not call.conId or put.conId == call.conId:
@@ -131,13 +134,19 @@ class HybridStrangleTrader:
                 print(f"⚠️ Premium too low for {ticker}: P={put_data.ask}, C={call_data.ask}")
                 return
 
-            self.ib.placeOrder(put, LimitOrder('SELL', 1, put_data.ask))
-            self.ib.placeOrder(call, LimitOrder('SELL', 1, call_data.ask))
+            key = (put.conId, call.conId)
             credit = put_data.ask + call_data.ask
-            self.position_symbols[(put.conId, call.conId)] = ticker
-            self.current_positions[(put.conId, call.conId)] = (market_now(), credit, iv_rank)
+            self.position_symbols[key] = ticker
+            self.current_positions[key] = (market_now(), credit, iv_rank)
+            self.entry_orders[key] = []
+            self.entry_orders[key].append(self.ib.placeOrder(put, LimitOrder('SELL', 1, put_data.ask)))
+            self.entry_orders[key].append(self.ib.placeOrder(call, LimitOrder('SELL', 1, call_data.ask)))
             print(f"✅ Sold {ticker} {put_strike}P/{call_strike}C @ ${credit:.2f} (IV Rank: {iv_rank:.0f})")
         except Exception as e:
+            if key is not None and not self.entry_orders.get(key):
+                self.current_positions.pop(key, None)
+                self.position_symbols.pop(key, None)
+                self.entry_orders.pop(key, None)
             print(f"❌ Error placing order for {ticker}: {e}")
 
     @staticmethod
@@ -147,23 +156,62 @@ class HybridStrangleTrader:
                 return value
         return None
 
+    def reconcile_entry(self, key):
+        entries = self.entry_orders.get(key)
+        if not entries:
+            return True
+        terminal = {'Filled', 'Cancelled', 'ApiCancelled', 'Inactive'}
+        if len(entries) == 2 and all(t.orderStatus.status == 'Filled' for t in entries):
+            prices = [t.orderStatus.avgFillPrice for t in entries]
+            if any(not isinstance(p, (int, float)) or not math.isfinite(p) or p <= 0 for p in prices):
+                return False
+            opened, _, rank = self.current_positions[key]
+            self.current_positions[key] = (opened, sum(prices), rank)
+            self.entry_orders.pop(key)
+            return True
+        failed_pair = len(entries) < 2 or any(t.orderStatus.status in terminal - {'Filled'} for t in entries)
+        if not failed_pair:
+            return False
+        for trade in entries:
+            if trade.orderStatus.status not in terminal and trade.orderStatus.status != 'PendingCancel':
+                self.ib.cancelOrder(trade.order)
+        if not all(t.orderStatus.status in terminal for t in entries):
+            return False
+        filled = [(index, t.orderStatus.filled) for index, t in enumerate(entries) if t.orderStatus.filled > 0]
+        if not filled:
+            self.current_positions.pop(key, None)
+            self.position_symbols.pop(key, None)
+            self.entry_orders.pop(key, None)
+            return False
+        plan = [(Contract(conId=key[index], exchange='SMART'), qty) for index, qty in filled]
+        if len(self.ib.qualifyContracts(*(contract for contract, qty in plan))) != len(plan):
+            return False
+        self.close_plans[key] = plan
+        self.closing_orders[key] = []
+        for contract, qty in plan:
+            self.closing_orders[key].append(self.ib.placeOrder(contract, MarketOrder('BUY', qty)))
+        return False
+
     def manage_positions(self):
         to_remove = []
-        for key, (open_time, credit, iv_rank) in self.current_positions.items():
+        for key, (open_time, credit, iv_rank) in list(self.current_positions.items()):
             try:
                 pending = self.closing_orders.get(key)
                 if pending:
-                    if len(pending) == 1:
-                        # Retry only the missing call leg; never duplicate an already submitted put.
-                        call = Contract(conId=key[1], exchange='SMART')
-                        if self.ib.qualifyContracts(call):
-                            pending.append(self.ib.placeOrder(call, MarketOrder('BUY', 1)))
+                    plan = self.close_plans.get(key, [(Contract(conId=cid, exchange='SMART'), 1) for cid in key])
+                    if len(pending) < len(plan):
+                        contract, qty = plan[len(pending)]
+                        if self.ib.qualifyContracts(contract):
+                            pending.append(self.ib.placeOrder(contract, MarketOrder('BUY', qty)))
                         continue
-                    if len(pending) == 2 and all(t.orderStatus.status == 'Filled' for t in pending):
+                    if len(pending) == len(plan) and all(t.orderStatus.status == 'Filled' for t in pending):
                         to_remove.append(key)
                     elif all(t.isDone() for t in pending) and all(t.orderStatus.filled == 0 for t in pending):
                         self.closing_orders.pop(key, None)
                     continue
+                if not self.reconcile_entry(key):
+                    continue
+                open_time, credit, iv_rank = self.current_positions[key]
                 if not isinstance(credit, (int, float)) or not math.isfinite(credit) or credit <= 0:
                     continue
                 put_id, call_id = key
@@ -189,6 +237,7 @@ class HybridStrangleTrader:
                     self.blacklist.add(put.symbol)
 
                 if reason:
+                    self.close_plans[key] = [(put, 1), (call, 1)]
                     put_exit = self.ib.placeOrder(put, MarketOrder('BUY', 1))
                     self.closing_orders[key] = [put_exit]
                     call_exit = self.ib.placeOrder(call, MarketOrder('BUY', 1))
@@ -201,6 +250,8 @@ class HybridStrangleTrader:
             self.current_positions.pop(key, None)
             self.position_symbols.pop(key, None)
             self.closing_orders.pop(key, None)
+            self.close_plans.pop(key, None)
+            self.entry_orders.pop(key, None)
 
     def next_expiry(self):
         today = market_now()
